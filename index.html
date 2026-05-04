@@ -179,32 +179,26 @@
     .save-btn:active { transform: scale(0.98); }
 
     /* ── History ── */
-    .history-wrap { padding: 16px; max-width: 860px; margin: 0 auto; }
-    .history-item {
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 14px 16px;
-      margin-bottom: 10px; cursor: pointer; box-shadow: var(--shadow);
+    .history-wrap { padding: 16px; max-width: 960px; margin: 0 auto; }
+    .htable { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .htable thead th {
+      background: var(--bg3); color: var(--text-muted);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; padding: 10px 12px;
+      text-align: left; border-bottom: 2px solid var(--border);
+      white-space: nowrap; position: sticky; top: var(--header-h); z-index: 10;
     }
-    .history-row { display: flex; align-items: center; gap: 10px; }
-    .history-fecha { font-size: 14px; font-weight: 700; min-width: 96px; }
-    .history-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-    .badge {
-      padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600;
-    }
-    .b-blue  { background: var(--primary-light); color: var(--primary); }
-    .b-green { background: var(--green-light); color: var(--green); }
-    .b-red   { background: rgba(224,108,108,0.12); color: var(--red); }
-    .b-amber { background: rgba(246,169,66,0.12); color: var(--amber); }
-    .b-gray  { background: var(--bg3); color: var(--text-muted); }
+    .htable tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
+    .htable tbody tr:hover { background: var(--bg3); }
+    .htable tbody tr.clona-row { background: rgba(82,183,136,0.07); }
+    .htable tbody tr.clona-row:hover { background: rgba(82,183,136,0.14); }
+    .htable td { padding: 9px 12px; color: var(--text); vertical-align: middle; white-space: nowrap; }
+    .htable td.nota { white-space: normal; max-width: 200px; font-size: 12px; color: var(--text-muted); }
+    .cv { font-weight: 700; }
     .del-btn {
-      padding: 7px 11px; border-radius: 9px; border: none;
+      padding: 5px 9px; border-radius: 7px; border: none;
       background: rgba(224,108,108,0.1); color: var(--red);
-      font-size: 15px; cursor: pointer; flex-shrink: 0;
-    }
-    .history-note {
-      font-size: 12px; color: var(--text-muted);
-      margin-top: 8px; padding-top: 8px;
-      border-top: 1px solid var(--border);
+      font-size: 14px; cursor: pointer;
     }
 
     /* ── Modal ── */
@@ -704,20 +698,29 @@ function renderHistory() {
   const list = document.getElementById('history-list');
   if (!registros.length) { list.innerHTML = '<div class="no-data">No hay registros todavía.</div>'; return; }
   const sorted = [...registros].sort((a,b) => b.fecha.localeCompare(a.fecha));
-  list.innerHTML = sorted.map(r => {
-    const ab = `<span class="badge ${r.animo>=7?'b-green':r.animo>=4?'b-blue':'b-red'}">😊 ${r.animo}</span>`;
-    const xb = `<span class="badge ${r.ansiedad>=8?'b-red':r.ansiedad>=5?'b-amber':'b-green'}">😰 ${r.ansiedad}</span>`;
-    const sb = `<span class="badge b-blue">😴 ${r.sueno_horas}h</span>`;
-    const mb = (r.medicacion||[]).length ? `<span class="badge b-green">💊</span>` : '';
-    const note = r.situaciones ? `<div class="history-note">${r.situaciones.slice(0,110)}${r.situaciones.length>110?'…':''}</div>` : '';
-    return `<div class="history-item" onclick="openDetail('${r.fecha}')">
-      <div class="history-row">
-        <div class="history-fecha">${fmt(r.fecha)}</div>
-        <div class="history-badges">${sb}${ab}${xb}${mb}</div>
-        <button class="del-btn" onclick="event.stopPropagation();askDel('${r.fecha}')">🗑</button>
-      </div>${note}
-    </div>`;
+  const rows = sorted.map(r => {
+    const conClona = (r.medicacion||[]).some(m => m.toLowerCase().includes('clonazepam'));
+    const clr = v => `style="color:${scoreColor(v)};font-weight:700"`;
+    const clrInv = v => `style="color:${scoreColor(v,true)};font-weight:700"`;
+    return `<tr class="${conClona?'clona-row':''}" onclick="openDetail('${r.fecha}')">
+      <td class="cv">${fmt(r.fecha)}</td>
+      <td ${clr(r.sueno_horas/2.4)}>${r.sueno_horas}h</td>
+      <td ${clr(r.calidad_sueno)}>${r.calidad_sueno}</td>
+      <td style="color:${r.despertares>=5?'var(--red)':r.despertares>=2?'var(--amber)':'var(--green)'};font-weight:700">${r.despertares}</td>
+      <td ${clr(r.animo)}>${r.animo}</td>
+      <td ${clrInv(r.ansiedad)}>${r.ansiedad}</td>
+      <td>${conClona ? '💊' : '—'}</td>
+      <td class="nota">${r.situaciones ? r.situaciones.slice(0,80)+(r.situaciones.length>80?'…':'') : '—'}</td>
+      <td><button class="del-btn" onclick="event.stopPropagation();askDel('${r.fecha}')">🗑</button></td>
+    </tr>`;
   }).join('');
+  list.innerHTML = `<table class="htable">
+    <thead><tr>
+      <th>Fecha</th><th>Sueño</th><th>Cal.sueño</th><th>Despert.</th>
+      <th>Ánimo</th><th>Ansiedad</th><th>Med.</th><th>Situaciones</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 function openDetail(fecha) {
