@@ -1,0 +1,18 @@
+{
+  "name": "Registro Diario",
+  "short_name": "Registro",
+  "description": "Registro diario de seguimiento psiquiátrico",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6fb",
+  "theme_color": "#5ba4cf",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

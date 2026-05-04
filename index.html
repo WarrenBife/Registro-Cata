@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Registro Diario</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#5ba4cf">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Registro">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f6fb;
+      --bg2: #ffffff;
+      --bg3: #edf1f8;
+      --text: #2d3748;
+      --text-muted: #718096;
+      --text-dim: #a0aec0;
+      --primary: #5ba4cf;
+      --primary-light: #dbeeff;
+      --green: #52b788;
+      --green-light: #d4f0e4;
+      --red: #e06c6c;
+      --amber: #f6a942;
+      --purple: #9b8ec4;
+      --border: #e2e8f0;
+      --shadow: 0 2px 10px rgba(91,164,207,0.10);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --tab-h: 72px;
+      --header-h: 58px;
+    }
+    [data-dark="1"] {
+      --bg: #111827; --bg2: #1f2937; --bg3: #1a2535;
+      --text: #f1f5f9; --text-muted: #94a3b8; --text-dim: #64748b;
+      --primary: #60b4e0; --primary-light: #1e3a52;
+      --green: #6bcf99; --green-light: #1a3a2a;
+      --red: #e87676; --amber: #f6b84e;
+      --border: #2d3748; --shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--header-h); background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; z-index: 100; gap: 12px;
+    }
+    .header-title { font-size: 17px; font-weight: 700; flex: 1; }
+    .dark-toggle {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: none; background: var(--bg3); color: var(--text-muted);
+      font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Main ── */
+    .main { padding-top: var(--header-h); padding-bottom: calc(var(--tab-h) + 8px); }
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--tab-h); background: var(--bg2);
+      border-top: 1px solid var(--border);
+      display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 3px;
+      border: none; background: none; color: var(--text-dim);
+      font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn .icon { font-size: 22px; line-height: 1; }
+    .nav-btn.active { color: var(--primary); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: calc(var(--tab-h) + 16px); left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: #1a202c; color: #fff; padding: 11px 22px;
+      border-radius: 99px; font-size: 14px; font-weight: 600;
+      opacity: 0; transition: all 0.3s cubic-bezier(0.175,.885,.32,1.275);
+      z-index: 500; pointer-events: none; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Form ── */
+    .form-wrap { padding: 16px; max-width: 860px; margin: 0 auto; }
+    .form-section {
+      background: var(--bg2); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 20px;
+      margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-dim); margin-bottom: 14px;
+    }
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .optional { font-size: 11px; font-weight: 400; color: var(--text-dim); }
+
+    input[type="date"], input[type="number"], textarea {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--bg3); color: var(--text);
+      font-size: 16px; font-family: inherit; outline: none;
+      transition: border-color 0.2s; -webkit-appearance: none;
+    }
+    input[type="date"]:focus, input[type="number"]:focus, textarea:focus { border-color: var(--primary); }
+    input[type="number"] { max-width: 130px; }
+    textarea { min-height: 82px; resize: vertical; }
+
+    /* ── Sliders ── */
+    .slider-wrap { display: flex; align-items: center; gap: 12px; }
+    .slider-track { flex: 1; }
+    input[type="range"] {
+      width: 100%; -webkit-appearance: none; appearance: none;
+      height: 7px; border-radius: 99px; outline: none; cursor: pointer;
+      background: linear-gradient(to right, var(--sc, var(--primary)) 0%, var(--sc, var(--primary)) var(--pct,50%), var(--border) var(--pct,50%));
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 30px; height: 30px;
+      border-radius: 50%; background: var(--sc, var(--primary));
+      border: 3px solid var(--bg2); box-shadow: 0 2px 6px rgba(0,0,0,0.18); cursor: pointer;
+    }
+    .slider-val {
+      font-size: 26px; font-weight: 800; min-width: 38px;
+      text-align: center; color: var(--sc, var(--primary));
+    }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+
+    /* ── Chips ── */
+    .chips-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      padding: 8px 14px; border-radius: 99px;
+      border: 1.5px solid var(--border); background: var(--bg3);
+      color: var(--text-muted); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip.sel { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .chip.med.sel { background: var(--green-light); border-color: var(--green); color: var(--green); }
+    .chip-add-row { display: flex; gap: 8px; margin-top: 10px; }
+    .chip-add-row input { flex: 1; max-width: none; font-size: 14px; padding: 8px 12px; }
+    .chip-add-btn {
+      padding: 8px 16px; border-radius: var(--radius-sm); border: none;
+      background: var(--primary); color: white; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    /* ── Save button ── */
+    .save-btn {
+      width: 100%; padding: 18px; border: none; border-radius: var(--radius);
+      background: linear-gradient(135deg, #5ba4cf, #7ab8e0);
+      color: white; font-size: 17px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(91,164,207,0.35);
+      transition: transform 0.1s, box-shadow 0.1s; margin-top: 6px;
+    }
+    .save-btn:active { transform: scale(0.98); }
+
+    /* ── History ── */
+    .history-wrap { padding: 16px; max-width: 860px; margin: 0 auto; }
+    .history-item {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px;
+      margin-bottom: 10px; cursor: pointer; box-shadow: var(--shadow);
+    }
+    .history-row { display: flex; align-items: center; gap: 10px; }
+    .history-fecha { font-size: 14px; font-weight: 700; min-width: 96px; }
+    .history-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+    .badge {
+      padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600;
+    }
+    .b-blue  { background: var(--primary-light); color: var(--primary); }
+    .b-green { background: var(--green-light); color: var(--green); }
+    .b-red   { background: rgba(224,108,108,0.12); color: var(--red); }
+    .b-amber { background: rgba(246,169,66,0.12); color: var(--amber); }
+    .b-gray  { background: var(--bg3); color: var(--text-muted); }
+    .del-btn {
+      padding: 7px 11px; border-radius: 9px; border: none;
+      background: rgba(224,108,108,0.1); color: var(--red);
+      font-size: 15px; cursor: pointer; flex-shrink: 0;
+    }
+    .history-note {
+      font-size: 12px; color: var(--text-muted);
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 300; display: none; align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg2); border-radius: 24px 24px 0 0;
+      width: 100%; max-width: 860px; max-height: 88vh;
+      overflow-y: auto; padding: 20px 22px 32px;
+      animation: slideUp 0.28s cubic-bezier(0.175,.885,.32,1.275);
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-handle { width: 38px; height: 4px; background: var(--border); border-radius: 99px; margin: 0 auto 18px; }
+    .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 18px; }
+    .detail-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 15px;
+    }
+    .detail-row:last-of-type { border-bottom: none; }
+    .detail-label { color: var(--text-muted); font-weight: 500; flex-shrink: 0; padding-right: 12px; }
+    .detail-val { color: var(--text); font-weight: 600; text-align: right; }
+
+    /* ── Confirm modal ── */
+    .confirm-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 400; display: none; align-items: center;
+      justify-content: center; padding: 20px;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box {
+      background: var(--bg2); border-radius: var(--radius);
+      padding: 28px 22px; max-width: 340px; width: 100%; text-align: center;
+    }
+    .confirm-box h3 { font-size: 18px; margin-bottom: 8px; }
+    .confirm-box p  { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; justify-content: center; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 18px; border-radius: var(--radius-sm); border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.75; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-green   { background: var(--green); color: white; }
+    .btn-red     { background: var(--red); color: white; }
+    .btn-outline { background: var(--bg3); color: var(--text); border: 1.5px solid var(--border); }
+
+    /* ── Dashboard ── */
+    .dash-wrap { padding: 16px; max-width: 1080px; margin: 0 auto; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 16px; }
+    @media(min-width:600px) { .kpi-grid { grid-template-columns: repeat(4,1fr); } }
+    @media(min-width:900px) { .kpi-grid { grid-template-columns: repeat(7,1fr); } }
+    .kpi-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+    .kpi-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .kpi-val { font-size: 26px; font-weight: 800; line-height: 1; }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .kpi-sub .up { color: var(--green); font-weight: 700; }
+    .kpi-sub .dn { color: var(--red); font-weight: 700; }
+    .kpi-sub .eq { color: var(--text-dim); font-weight: 600; }
+
+    .range-btns { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .range-btn {
+      padding: 6px 14px; border-radius: 99px; border: 1.5px solid var(--border);
+      background: var(--bg3); color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .range-btn.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+
+    .charts-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media(min-width:700px) { .charts-grid { grid-template-columns: repeat(2,1fr); } }
+    .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+    .chart-card.full { grid-column: 1/-1; }
+    .chart-title { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+    .chart-box { position: relative; height: 200px; }
+    .chart-box.tall { height: 260px; }
+
+    /* ── Export ── */
+    .export-wrap { padding: 16px; max-width: 660px; margin: 0 auto; }
+    .export-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .export-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .export-card p  { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+
+    .no-data { text-align: center; color: var(--text-dim); font-size: 13px; padding: 36px 0; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-title">📋 Registro Diario</div>
+  <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">🌙</button>
+</header>
+
+<div class="toast" id="toast"></div>
+
+<main class="main">
+
+  <!-- ══ TAB REGISTRO ══════════════════════════════════════ -->
+  <div class="tab-view active" id="tab-registro">
+    <div class="form-wrap">
+
+      <div class="form-section">
+        <div class="section-title">📅 Fecha</div>
+        <input type="date" id="f-fecha">
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">😴 Sueño</div>
+        <div class="field">
+          <div class="field-label">Horas dormidas</div>
+          <input type="number" id="f-horas" min="0" max="24" step="0.5" placeholder="7.5">
+        </div>
+        <div class="field">
+          <div class="field-label">Calidad del sueño <span class="slider-val" id="v-calidad" style="--sc:#5ba4cf">5</span></div>
+          <div class="slider-wrap">
+            <span style="font-size:20px">😴</span>
+            <div class="slider-track">
+              <input type="range" id="f-calidad" min="0" max="10" value="5" oninput="upSlider(this,'v-calidad',false)">
+              <div class="slider-labels"><span>Pésima</span><span>Excelente</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Despertares nocturnos</div>
+          <input type="number" id="f-despertares" min="0" max="20" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">🧠 Estado mental</div>
+        <div class="field">
+          <div class="field-label">Ánimo <span class="slider-val" id="v-animo" style="--sc:#5ba4cf">5</span></div>
+          <div class="slider-wrap">
+            <span style="font-size:20px">😔</span>
+            <div class="slider-track">
+              <input type="range" id="f-animo" min="0" max="10" value="5" oninput="upSlider(this,'v-animo',false)">
+              <div class="slider-labels"><span>Muy bajo</span><span>Excelente</span></div>
+            </div>
+            <span style="font-size:20px">😊</span>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Ansiedad <span class="slider-val" id="v-ansiedad" style="--sc:#5ba4cf">5</span></div>
+          <div class="slider-wrap">
+            <span style="font-size:20px">😌</span>
+            <div class="slider-track">
+              <input type="range" id="f-ansiedad" min="0" max="10" value="5" oninput="upSlider(this,'v-ansiedad',true)">
+              <div class="slider-labels"><span>Sin ansiedad</span><span>Muy alta</span></div>
+            </div>
+            <span style="font-size:20px">😰</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">🩺 Síntomas físicos</div>
+        <div class="chips-wrap" id="sintomas-chips"></div>
+        <div class="chip-add-row">
+          <input type="text" id="sintoma-input" placeholder="Otro síntoma..." maxlength="50">
+          <button class="chip-add-btn" onclick="addCustom('sintoma')">+ Agregar</button>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">💬 Situaciones</div>
+        <textarea id="f-situaciones" placeholder="Exposición, estrés, eventos relevantes del día..."></textarea>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">💊 Medicación</div>
+        <div class="chips-wrap" id="med-chips"></div>
+        <div class="chip-add-row">
+          <input type="text" id="med-input" placeholder="Otra medicación..." maxlength="50">
+          <button class="chip-add-btn" onclick="addCustom('med')">+ Agregar</button>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">🌙 Ciclo menstrual</div>
+        <div class="field-label">Día del ciclo <span class="optional">(opcional)</span></div>
+        <input type="number" id="f-ciclo" min="1" max="45" step="1" placeholder="—">
+      </div>
+
+      <button class="save-btn" id="save-btn" onclick="guardar()">✓ Guardar registro</button>
+    </div>
+  </div>
+
+  <!-- ══ TAB HISTORIAL ═════════════════════════════════════ -->
+  <div class="tab-view" id="tab-historial">
+    <div class="history-wrap" id="history-list"></div>
+  </div>
+
+  <!-- ══ TAB DASHBOARD ════════════════════════════════════ -->
+  <div class="tab-view" id="tab-dashboard">
+    <div class="dash-wrap">
+      <div class="kpi-grid" id="kpi-grid"></div>
+      <div class="range-btns">
+        <button class="range-btn active" onclick="setRange(14,this)">14d</button>
+        <button class="range-btn" onclick="setRange(30,this)">30d</button>
+        <button class="range-btn" onclick="setRange(60,this)">60d</button>
+        <button class="range-btn" onclick="setRange(90,this)">90d</button>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card full"><div class="chart-title">Ánimo vs Ansiedad</div><div class="chart-box"><canvas id="c-animo"></canvas></div></div>
+        <div class="chart-card full"><div class="chart-title">Sueño — horas y calidad</div><div class="chart-box"><canvas id="c-sueno"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Despertares nocturnos</div><div class="chart-box"><canvas id="c-despert"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Promedios semanales</div><div class="chart-box"><canvas id="c-semanas"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Calidad sueño → Ánimo al día siguiente</div><div class="chart-box"><canvas id="c-sc1"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Horas sueño vs Ansiedad</div><div class="chart-box"><canvas id="c-sc2"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Ansiedad vs N° síntomas</div><div class="chart-box"><canvas id="c-sc3"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Ánimo / Ansiedad — con y sin medicación</div><div class="chart-box"><canvas id="c-med"></canvas></div></div>
+        <div class="chart-card full"><div class="chart-title">Frecuencia de síntomas físicos</div><div class="chart-box tall" id="box-sintomas"><canvas id="c-sintomas"></canvas></div></div>
+        <div class="chart-card full"><div class="chart-title">Ciclo menstrual + Ánimo / Ansiedad</div><div class="chart-box" id="box-ciclo"><canvas id="c-ciclo"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB EXPORTAR ══════════════════════════════════════ -->
+  <div class="tab-view" id="tab-exportar">
+    <div class="export-wrap">
+      <div class="export-card">
+        <h3>📤 Exportar JSON</h3>
+        <p>Descargá todos tus registros como backup. Podés importarlos en otro dispositivo.</p>
+        <button class="btn btn-primary" onclick="exportJSON()">⬇ Descargar JSON</button>
+      </div>
+      <div class="export-card">
+        <h3>📥 Importar JSON</h3>
+        <p>Restaurá registros desde un backup. Los registros con la misma fecha serán reemplazados.</p>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+        <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">📁 Seleccionar archivo</button>
+      </div>
+      <div class="export-card">
+        <h3>📊 Exportar CSV</h3>
+        <p>Exportá los datos en formato planilla para llevar a tu consulta.</p>
+        <button class="btn btn-green" onclick="exportCSV()">⬇ Descargar CSV</button>
+      </div>
+      <div class="export-card" style="border-color:rgba(224,108,108,0.35)">
+        <h3>🗑 Borrar todos los datos</h3>
+        <p>Eliminá todos los registros. Esta acción no se puede deshacer.</p>
+        <button class="btn btn-red" onclick="askDeleteAll()">🗑 Borrar todo</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-registro"  onclick="goTab('registro')"><span class="icon">📝</span>Registro</button>
+  <button class="nav-btn"        id="nav-historial" onclick="goTab('historial')"><span class="icon">📋</span>Historial</button>
+  <button class="nav-btn"        id="nav-dashboard" onclick="goTab('dashboard')"><span class="icon">📊</span>Dashboard</button>
+  <button class="nav-btn"        id="nav-exportar"  onclick="goTab('exportar')"><span class="icon">💾</span>Exportar</button>
+</nav>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<!-- Confirm delete -->
+<div class="confirm-overlay" id="confirm-overlay" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-box">
+    <h3>¿Eliminar registro?</h3>
+    <p id="confirm-msg"></p>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-red" id="confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── INITIAL DATA ────────────────────────────────────────────
+const SEED = [
+  {"fecha":"2026-04-09","sueno_horas":6,"calidad_sueno":8,"despertares":1,"animo":7,"ansiedad":8,"sintomas":["tensión muscular"],"situaciones":"Primera consulta - cumpleaños de mi mamá","medicacion":["Clonazepam 0.5"],"dia_ciclo":1},
+  {"fecha":"2026-04-10","sueno_horas":8,"calidad_sueno":4,"despertares":3,"animo":7,"ansiedad":7,"sintomas":["nerviosismo","temblores","dolor abdominal","reflujo","diarrea","inapetencia"],"situaciones":"Primer día de medicación","medicacion":[],"dia_ciclo":2},
+  {"fecha":"2026-04-11","sueno_horas":8,"calidad_sueno":6,"despertares":2,"animo":6,"ansiedad":7,"sintomas":["dolor abdominal","reflujo","sensación de despersonalización","mareo","inapetencia"],"situaciones":"","medicacion":[],"dia_ciclo":3},
+  {"fecha":"2026-04-12","sueno_horas":6,"calidad_sueno":7,"despertares":2,"animo":4,"ansiedad":9,"sintomas":["palpitaciones","tensión muscular","temblores","bruxismo","distracción"],"situaciones":"Problema en la inscripción al ERM","medicacion":["Clonazepam 0.5"],"dia_ciclo":4},
+  {"fecha":"2026-04-13","sueno_horas":8,"calidad_sueno":9,"despertares":1,"animo":7,"ansiedad":7,"sintomas":["distracción","bruxismo"],"situaciones":"Inscripción ERM","medicacion":[],"dia_ciclo":5},
+  {"fecha":"2026-04-14","sueno_horas":4,"calidad_sueno":2,"despertares":4,"animo":8,"ansiedad":8,"sintomas":["bruxismo"],"situaciones":"Visita hospital","medicacion":["Clonazepam 0.5"],"dia_ciclo":6},
+  {"fecha":"2026-04-15","sueno_horas":8,"calidad_sueno":8,"despertares":0,"animo":2,"ansiedad":8,"sintomas":["bruxismo"],"situaciones":"Elección especialidad","medicacion":[],"dia_ciclo":7},
+  {"fecha":"2026-04-16","sueno_horas":5,"calidad_sueno":2,"despertares":6,"animo":2,"ansiedad":9,"sintomas":["bruxismo","tensión muscular"],"situaciones":"Elección especialidad","medicacion":[],"dia_ciclo":8},
+  {"fecha":"2026-04-17","sueno_horas":8,"calidad_sueno":8,"despertares":0,"animo":8,"ansiedad":7,"sintomas":[],"situaciones":"Inscripción en Garrahan","medicacion":["Clonazepam 0.5"],"dia_ciclo":9},
+  {"fecha":"2026-04-18","sueno_horas":4,"calidad_sueno":3,"despertares":6,"animo":6,"ansiedad":8,"sintomas":["bruxismo"],"situaciones":"","medicacion":[],"dia_ciclo":10},
+  {"fecha":"2026-04-19","sueno_horas":8,"calidad_sueno":8,"despertares":1,"animo":6,"ansiedad":8,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":11},
+  {"fecha":"2026-04-20","sueno_horas":6,"calidad_sueno":5,"despertares":4,"animo":6,"ansiedad":7,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":12},
+  {"fecha":"2026-04-21","sueno_horas":5,"calidad_sueno":3,"despertares":6,"animo":5,"ansiedad":9,"sintomas":["palpitaciones","dolor abdominal","sudoración"],"situaciones":"Me lesioné la rodilla, visita al CEMIC","medicacion":["Clonazepam 0.5"],"dia_ciclo":13},
+  {"fecha":"2026-04-22","sueno_horas":7,"calidad_sueno":5,"despertares":3,"animo":6,"ansiedad":7,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":14},
+  {"fecha":"2026-04-23","sueno_horas":7,"calidad_sueno":5,"despertares":4,"animo":5,"ansiedad":8,"sintomas":[],"situaciones":"Inscripciones","medicacion":["Clonazepam 0.5"],"dia_ciclo":15},
+  {"fecha":"2026-04-24","sueno_horas":7,"calidad_sueno":8,"despertares":0,"animo":6,"ansiedad":7,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":16},
+  {"fecha":"2026-04-25","sueno_horas":7,"calidad_sueno":8,"despertares":0,"animo":8,"ansiedad":5,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":17},
+  {"fecha":"2026-04-26","sueno_horas":7,"calidad_sueno":6,"despertares":2,"animo":5,"ansiedad":7,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":18},
+  {"fecha":"2026-04-27","sueno_horas":8,"calidad_sueno":5,"despertares":1,"animo":7,"ansiedad":6,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":19},
+  {"fecha":"2026-04-28","sueno_horas":8,"calidad_sueno":5,"despertares":3,"animo":7,"ansiedad":6,"sintomas":["palpitaciones","temblores"],"situaciones":"Pelea con mi hermano (síntomas simpáticos)","medicacion":[],"dia_ciclo":20},
+  {"fecha":"2026-04-29","sueno_horas":7,"calidad_sueno":3,"despertares":4,"animo":7,"ansiedad":6,"sintomas":[],"situaciones":"","medicacion":[],"dia_ciclo":21},
+  {"fecha":"2026-04-30","sueno_horas":7,"calidad_sueno":3,"despertares":2,"animo":7,"ansiedad":6,"sintomas":["bruxismo","sueños vívidos","despertares nocturnos","contractura muscular"],"situaciones":"","medicacion":[],"dia_ciclo":22},
+  {"fecha":"2026-05-01","sueno_horas":7,"calidad_sueno":3,"despertares":5,"animo":7,"ansiedad":6,"sintomas":["bruxismo","sueños vívidos","despertares nocturnos","contractura muscular"],"situaciones":"","medicacion":[],"dia_ciclo":23},
+  {"fecha":"2026-05-02","sueno_horas":7,"calidad_sueno":3,"despertares":2,"animo":7,"ansiedad":6,"sintomas":["bruxismo","sueños vívidos","despertares nocturnos","contractura muscular"],"situaciones":"Examen de residencias","medicacion":[],"dia_ciclo":24},
+  {"fecha":"2026-05-03","sueno_horas":7,"calidad_sueno":5,"despertares":1,"animo":6,"ansiedad":6,"sintomas":["bruxismo","sueños vívidos","despertares nocturnos","contractura muscular"],"situaciones":"","medicacion":[],"dia_ciclo":25}
+];
+
+const SINTOMAS_BASE = ["tensión muscular","bruxismo","palpitaciones","temblores","dolor abdominal","reflujo","diarrea","inapetencia","sensación de despersonalización","mareo","nerviosismo","sudoración","distracción","contractura muscular","sueños vívidos","despertares nocturnos"];
+const MEDS_BASE     = ["Clonazepam 0.25","Clonazepam 0.5","Clonazepam 1","Ninguna"];
+const KEY = 'registro_cata_v1';
+
+// ─── STATE ───────────────────────────────────────────────────
+let registros = [];
+let selSintomas = new Set();
+let selMeds     = new Set();
+let custSintomas = [];
+let custMeds     = [];
+let range = 30;
+let charts = {};
+let isDark = localStorage.getItem('dark') === '1';
+
+// ─── INIT ────────────────────────────────────────────────────
+function init() {
+  // Dark mode
+  if (isDark) document.documentElement.setAttribute('data-dark','1');
+  document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
+
+  // Load data
+  const raw = localStorage.getItem(KEY);
+  if (raw) {
+    try { registros = JSON.parse(raw); } catch { registros = [...SEED]; save(); }
+  } else { registros = [...SEED]; save(); }
+
+  // Extract custom chips from saved data
+  registros.forEach(r => {
+    (r.sintomas||[]).forEach(s => { if (!SINTOMAS_BASE.includes(s) && !custSintomas.includes(s)) custSintomas.push(s); });
+    (r.medicacion||[]).forEach(m => { if (!MEDS_BASE.includes(m) && !custMeds.includes(m)) custMeds.push(m); });
+  });
+
+  // Setup form
+  document.getElementById('f-fecha').value = hoy();
+  loadForm(hoy());
+  document.getElementById('f-fecha').addEventListener('change', e => loadForm(e.target.value));
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+function save() { localStorage.setItem(KEY, JSON.stringify(registros)); }
+function hoy()  { return new Date().toISOString().slice(0,10); }
+function fmt(f) { const [y,m,d] = f.split('-'); return `${d}/${m}/${y}`; }
+
+// ─── DARK MODE ───────────────────────────────────────────────
+function toggleDark() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-dark', isDark ? '1' : '0');
+  localStorage.setItem('dark', isDark ? '1' : '0');
+  document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
+  if (document.getElementById('tab-dashboard').classList.contains('active')) renderDashboard();
+}
+
+// ─── TABS ────────────────────────────────────────────────────
+function goTab(name) {
+  ['registro','historial','dashboard','exportar'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.remove('active');
+    document.getElementById(`nav-${t}`).classList.remove('active');
+  });
+  document.getElementById(`tab-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+  if (name === 'historial') renderHistory();
+  if (name === 'dashboard') renderDashboard();
+}
+
+// ─── SLIDER ──────────────────────────────────────────────────
+function lerpHex(c1,c2,t) {
+  const h = s => [parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)];
+  const [r1,g1,b1]=h(c1), [r2,g2,b2]=h(c2);
+  return `rgb(${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)})`;
+}
+
+function scoreColor(v, inv=false) {
+  const n = inv ? 10-v : v;
+  if (n <= 5) return lerpHex('#e06c6c','#f6a942', n/5);
+  return lerpHex('#f6a942','#52b788', (n-5)/5);
+}
+
+function upSlider(el, vid, inv) {
+  const v = parseInt(el.value);
+  const c = scoreColor(v, inv);
+  el.style.setProperty('--sc', c);
+  el.style.setProperty('--pct', `${v*10}%`);
+  const lbl = document.getElementById(vid);
+  lbl.textContent = v;
+  lbl.style.setProperty('--sc', c);
+  lbl.style.color = c;
+}
+
+function setSlider(elId, vid, v, inv) {
+  const el = document.getElementById(elId);
+  el.value = v;
+  upSlider(el, vid, inv);
+}
+
+// ─── CHIPS ───────────────────────────────────────────────────
+function renderChips() {
+  const sc = document.getElementById('sintomas-chips');
+  sc.innerHTML = '';
+  [...SINTOMAS_BASE,...custSintomas].forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'chip' + (selSintomas.has(s)?' sel':'');
+    el.textContent = s;
+    el.onclick = () => { selSintomas.has(s) ? selSintomas.delete(s) : selSintomas.add(s); el.classList.toggle('sel'); };
+    sc.appendChild(el);
+  });
+  const mc = document.getElementById('med-chips');
+  mc.innerHTML = '';
+  [...MEDS_BASE,...custMeds].forEach(m => {
+    const el = document.createElement('div');
+    el.className = 'chip med' + (selMeds.has(m)?' sel':'');
+    el.textContent = m;
+    el.onclick = () => { selMeds.has(m) ? selMeds.delete(m) : selMeds.add(m); el.classList.toggle('sel'); };
+    mc.appendChild(el);
+  });
+}
+
+function addCustom(type) {
+  const inp = document.getElementById(type==='sintoma'?'sintoma-input':'med-input');
+  const v = inp.value.trim(); if (!v) return;
+  if (type === 'sintoma') { if (!SINTOMAS_BASE.includes(v)&&!custSintomas.includes(v)) custSintomas.push(v); selSintomas.add(v); }
+  else                    { if (!MEDS_BASE.includes(v)&&!custMeds.includes(v)) custMeds.push(v); selMeds.add(v); }
+  inp.value = '';
+  renderChips();
+}
+
+// ─── FORM ────────────────────────────────────────────────────
+function loadForm(fecha) {
+  const r = registros.find(x => x.fecha === fecha);
+  selSintomas = new Set(); selMeds = new Set();
+  if (r) {
+    document.getElementById('f-horas').value = r.sueno_horas ?? '';
+    setSlider('f-calidad','v-calidad', r.calidad_sueno ?? 5, false);
+    document.getElementById('f-despertares').value = r.despertares ?? '';
+    setSlider('f-animo','v-animo', r.animo ?? 5, false);
+    setSlider('f-ansiedad','v-ansiedad', r.ansiedad ?? 5, true);
+    document.getElementById('f-situaciones').value = r.situaciones ?? '';
+    document.getElementById('f-ciclo').value = r.dia_ciclo ?? '';
+    (r.sintomas||[]).forEach(s => selSintomas.add(s));
+    (r.medicacion||[]).forEach(m => selMeds.add(m));
+  } else {
+    document.getElementById('f-horas').value = '';
+    setSlider('f-calidad','v-calidad',5,false);
+    document.getElementById('f-despertares').value = '';
+    setSlider('f-animo','v-animo',5,false);
+    setSlider('f-ansiedad','v-ansiedad',5,true);
+    document.getElementById('f-situaciones').value = '';
+    document.getElementById('f-ciclo').value = '';
+  }
+  renderChips();
+}
+
+function guardar() {
+  const fecha = document.getElementById('f-fecha').value;
+  if (!fecha) { toast('⚠️ Seleccioná una fecha'); return; }
+  const r = {
+    fecha,
+    sueno_horas:  parseFloat(document.getElementById('f-horas').value) || 0,
+    calidad_sueno: parseInt(document.getElementById('f-calidad').value),
+    despertares:   parseInt(document.getElementById('f-despertares').value) || 0,
+    animo:    parseInt(document.getElementById('f-animo').value),
+    ansiedad: parseInt(document.getElementById('f-ansiedad').value),
+    sintomas: [...selSintomas],
+    situaciones: document.getElementById('f-situaciones').value.trim(),
+    medicacion: [...selMeds],
+    dia_ciclo: document.getElementById('f-ciclo').value ? parseInt(document.getElementById('f-ciclo').value) : null
+  };
+  const i = registros.findIndex(x => x.fecha === fecha);
+  if (i >= 0) registros[i] = r; else registros.push(r);
+  registros.sort((a,b) => a.fecha.localeCompare(b.fecha));
+  save();
+  toast('✓ Registro guardado');
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Guardado!';
+  btn.style.background = 'linear-gradient(135deg,#52b788,#7ec8a4)';
+  setTimeout(() => { btn.textContent = '✓ Guardar registro'; btn.style.background = ''; }, 1500);
+}
+
+// ─── TOAST ───────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── HISTORY ─────────────────────────────────────────────────
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!registros.length) { list.innerHTML = '<div class="no-data">No hay registros todavía.</div>'; return; }
+  const sorted = [...registros].sort((a,b) => b.fecha.localeCompare(a.fecha));
+  list.innerHTML = sorted.map(r => {
+    const ab = `<span class="badge ${r.animo>=7?'b-green':r.animo>=4?'b-blue':'b-red'}">😊 ${r.animo}</span>`;
+    const xb = `<span class="badge ${r.ansiedad>=8?'b-red':r.ansiedad>=5?'b-amber':'b-green'}">😰 ${r.ansiedad}</span>`;
+    const sb = `<span class="badge b-blue">😴 ${r.sueno_horas}h</span>`;
+    const mb = (r.medicacion||[]).length ? `<span class="badge b-green">💊</span>` : '';
+    const note = r.situaciones ? `<div class="history-note">${r.situaciones.slice(0,110)}${r.situaciones.length>110?'…':''}</div>` : '';
+    return `<div class="history-item" onclick="openDetail('${r.fecha}')">
+      <div class="history-row">
+        <div class="history-fecha">${fmt(r.fecha)}</div>
+        <div class="history-badges">${sb}${ab}${xb}${mb}</div>
+        <button class="del-btn" onclick="event.stopPropagation();askDel('${r.fecha}')">🗑</button>
+      </div>${note}
+    </div>`;
+  }).join('');
+}
+
+function openDetail(fecha) {
+  const r = registros.find(x => x.fecha === fecha); if (!r) return;
+  document.getElementById('detail-body').innerHTML = `
+    <div class="modal-title">${fmt(r.fecha)}</div>
+    <div class="detail-row"><span class="detail-label">Horas sueño</span><span class="detail-val">${r.sueno_horas}h</span></div>
+    <div class="detail-row"><span class="detail-label">Calidad sueño</span><span class="detail-val" style="color:${scoreColor(r.calidad_sueno)}">${r.calidad_sueno}/10</span></div>
+    <div class="detail-row"><span class="detail-label">Despertares</span><span class="detail-val">${r.despertares}</span></div>
+    <div class="detail-row"><span class="detail-label">Ánimo</span><span class="detail-val" style="color:${scoreColor(r.animo)}">${r.animo}/10</span></div>
+    <div class="detail-row"><span class="detail-label">Ansiedad</span><span class="detail-val" style="color:${scoreColor(r.ansiedad,true)}">${r.ansiedad}/10</span></div>
+    <div class="detail-row"><span class="detail-label">Síntomas</span><span class="detail-val">${(r.sintomas||[]).join(', ')||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Medicación</span><span class="detail-val">${(r.medicacion||[]).join(', ')||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Situaciones</span><span class="detail-val">${r.situaciones||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Día ciclo</span><span class="detail-val">${r.dia_ciclo??'—'}</span></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="editFrom('${fecha}')">✏️ Editar</button>
+      <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="closeDetail()">Cerrar</button>
+    </div>`;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+function closeDetail() { document.getElementById('detail-overlay').classList.remove('open'); }
+function editFrom(fecha) { closeDetail(); document.getElementById('f-fecha').value=fecha; loadForm(fecha); goTab('registro'); }
+
+// Delete confirm
+let pendingDel = null;
+function askDel(fecha) {
+  pendingDel = fecha;
+  document.getElementById('confirm-msg').textContent = `Registro del ${fmt(fecha)}`;
+  document.getElementById('confirm-ok').onclick = doDel;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function askDeleteAll() {
+  document.getElementById('confirm-msg').textContent = '¿Seguro? Se borrarán TODOS los registros.';
+  document.getElementById('confirm-ok').onclick = () => { registros=[]; save(); closeConfirm(); renderHistory(); toast('🗑 Datos eliminados'); };
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function doDel() { registros=registros.filter(r=>r.fecha!==pendingDel); save(); closeConfirm(); renderHistory(); toast('🗑 Registro eliminado'); }
+function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); pendingDel=null; }
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+function setRange(d, btn) {
+  range = d;
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDashboard();
+}
+
+function filtered(days=range) {
+  const cut = new Date(); cut.setDate(cut.getDate()-days);
+  const cs = cut.toISOString().slice(0,10);
+  return [...registros].filter(r=>r.fecha>=cs).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+}
+
+function avg(arr) { return arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null; }
+function n1(v)    { return v===null ? null : Math.round(v*10)/10; }
+
+function gc() {
+  return {
+    grid: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+    tick: isDark ? '#94a3b8' : '#718096'
+  };
+}
+
+function killChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderDashboard() {
+  renderKPIs();
+  renderAnimo(); renderSueno(); renderDespert(); renderSemanas();
+  renderSc1(); renderSc2(); renderSc3(); renderMed(); renderSintFreq(); renderCiclo();
+}
+
+function renderKPIs() {
+  const d7=filtered(7), d30=filtered(30);
+  function kpi(lbl, field, inv=false) {
+    const v7=avg(d7.map(r=>r[field])), v30=avg(d30.map(r=>r[field]));
+    const diff = v7!==null&&v30!==null ? v7-v30 : null;
+    const good = inv ? diff<-0.05 : diff>0.05;
+    const cls  = diff===null||Math.abs(diff)<0.05 ? 'eq' : (good?'up':'dn');
+    const arrow= diff===null ? '' : Math.abs(diff)<0.05 ? '→' : diff>0 ? '↑' : '↓';
+    return `<div class="kpi-card">
+      <div class="kpi-label">${lbl}</div>
+      <div class="kpi-val">${v7!==null?v7.toFixed(1):'—'}</div>
+      <div class="kpi-sub"><span class="${cls}">${arrow}</span> vs 30d: ${v30!==null?v30.toFixed(1):'—'}</div>
+    </div>`;
+  }
+  // Streak
+  const sorted=[...registros].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  let streak=0; for(const r of sorted){ if(r.animo>=7)streak++; else break; }
+  // Best/worst this month
+  const mes=registros.filter(r=>r.fecha.startsWith(hoy().slice(0,7)));
+  const best=mes.length?mes.reduce((a,b)=>a.animo>b.animo?a:b):null;
+  const worst=mes.length?mes.reduce((a,b)=>a.animo<b.animo?a:b):null;
+
+  document.getElementById('kpi-grid').innerHTML =
+    kpi('😊 Ánimo','animo') +
+    kpi('😰 Ansiedad','ansiedad',true) +
+    kpi('😴 Horas sueño','sueno_horas') +
+    kpi('⭐ Cal. sueño','calidad_sueno') +
+    `<div class="kpi-card"><div class="kpi-label">🔥 Racha ánimo≥7</div><div class="kpi-val">${streak}d</div><div class="kpi-sub">consecutivos</div></div>` +
+    `<div class="kpi-card"><div class="kpi-label">🌟 Mejor día</div><div class="kpi-val" style="font-size:17px">${best?fmt(best.fecha):'—'}</div><div class="kpi-sub">${best?`ánimo ${best.animo}`:''}</div></div>` +
+    `<div class="kpi-card"><div class="kpi-label">⚡ Peor día</div><div class="kpi-val" style="font-size:17px">${worst?fmt(worst.fecha):'—'}</div><div class="kpi-sub">${worst?`ánimo ${worst.animo}`:''}</div></div>`;
+}
+
+function lineOpts(extra={}) {
+  const {grid,tick}=gc();
+  return {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+    scales:{
+      x:{ticks:{color:tick,font:{size:10},maxTicksLimit:10},grid:{color:grid}},
+      y:{ticks:{color:tick,font:{size:10}},grid:{color:grid},...(extra.y||{})}
+    }, ...extra.opts
+  };
+}
+
+function renderAnimo() {
+  killChart('animo');
+  const d=filtered(); const lbl=d.map(r=>fmt(r.fecha));
+  const {grid,tick}=gc();
+  charts['animo']=new Chart(document.getElementById('c-animo'),{
+    type:'line',
+    data:{labels:lbl,datasets:[
+      {label:'Ánimo',data:d.map(r=>r.animo),borderColor:'#5ba4cf',backgroundColor:'rgba(91,164,207,0.08)',borderWidth:2.5,pointRadius:4,fill:true,tension:0.3},
+      {label:'Ansiedad',data:d.map(r=>r.ansiedad),borderColor:'#e06c6c',backgroundColor:'rgba(224,108,108,0.06)',borderWidth:2.5,pointRadius:4,fill:true,tension:0.3}
+    ]},
+    options:{...lineOpts(), scales:{x:{ticks:{color:tick,font:{size:10},maxTicksLimit:10},grid:{color:grid}},y:{min:0,max:10,ticks:{color:tick,font:{size:10}},grid:{color:grid}}}}
+  });
+}
+
+function renderSueno() {
+  killChart('sueno');
+  const d=filtered(); const lbl=d.map(r=>fmt(r.fecha));
+  const {grid,tick}=gc();
+  charts['sueno']=new Chart(document.getElementById('c-sueno'),{
+    type:'line',
+    data:{labels:lbl,datasets:[
+      {label:'Horas',data:d.map(r=>r.sueno_horas),borderColor:'#9b8ec4',backgroundColor:'rgba(155,142,196,0.08)',borderWidth:2.5,pointRadius:4,fill:true,tension:0.3,yAxisID:'y'},
+      {label:'Calidad',data:d.map(r=>r.calidad_sueno),borderColor:'#52b788',borderWidth:2.5,pointRadius:4,fill:false,tension:0.3,yAxisID:'y2'}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+      scales:{
+        x:{ticks:{color:tick,font:{size:10},maxTicksLimit:10},grid:{color:grid}},
+        y:{type:'linear',position:'left',min:0,max:12,title:{display:true,text:'Horas',color:tick,font:{size:10}},ticks:{color:tick,font:{size:10}},grid:{color:grid}},
+        y2:{type:'linear',position:'right',min:0,max:10,title:{display:true,text:'Calidad',color:tick,font:{size:10}},ticks:{color:tick,font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+function renderDespert() {
+  killChart('despert');
+  const d=filtered(); const {grid,tick}=gc();
+  charts['despert']=new Chart(document.getElementById('c-despert'),{
+    type:'bar',
+    data:{labels:d.map(r=>fmt(r.fecha)),datasets:[{label:'Despertares',data:d.map(r=>r.despertares),backgroundColor:'rgba(155,142,196,0.65)',borderColor:'#9b8ec4',borderWidth:1.5,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+      scales:{x:{ticks:{color:tick,font:{size:10},maxTicksLimit:10},grid:{color:grid}},y:{min:0,ticks:{color:tick,font:{size:10},stepSize:1},grid:{color:grid}}}}
+  });
+}
+
+function weekKey(d) {
+  const jan=new Date(d.getFullYear(),0,1);
+  const wk=Math.ceil((((d-jan)/86400000)+jan.getDay()+1)/7);
+  return `${d.getFullYear()}-W${String(wk).padStart(2,'0')}`;
+}
+
+function renderSemanas() {
+  killChart('semanas');
+  const d=filtered(84); // ~12 weeks
+  const weeks={};
+  d.forEach(r=>{ const k=weekKey(new Date(r.fecha)); if(!weeks[k])weeks[k]=[]; weeks[k].push(r); });
+  const keys=Object.keys(weeks).sort();
+  const {grid,tick}=gc();
+  charts['semanas']=new Chart(document.getElementById('c-semanas'),{
+    type:'bar',
+    data:{
+      labels:keys.map(k=>k.replace('-W','·W')),
+      datasets:[
+        {label:'Ánimo',     data:keys.map(k=>n1(avg(weeks[k].map(r=>r.animo)))),    backgroundColor:'rgba(91,164,207,0.72)',borderRadius:3},
+        {label:'Ansiedad',  data:keys.map(k=>n1(avg(weeks[k].map(r=>r.ansiedad)))), backgroundColor:'rgba(224,108,108,0.72)',borderRadius:3},
+        {label:'Sueño (h)', data:keys.map(k=>n1(avg(weeks[k].map(r=>r.sueno_horas)))), backgroundColor:'rgba(155,142,196,0.72)',borderRadius:3},
+        {label:'Cal.sueño', data:keys.map(k=>n1(avg(weeks[k].map(r=>r.calidad_sueno)))), backgroundColor:'rgba(82,183,136,0.72)',borderRadius:3}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:10},boxWidth:10}}},
+      scales:{x:{ticks:{color:tick,font:{size:9}},grid:{color:grid}},y:{min:0,max:12,ticks:{color:tick,font:{size:10}},grid:{color:grid}}}}
+  });
+}
+
+function scOpts(xLbl,yLbl,xMin,xMax,yMin,yMax) {
+  const {grid,tick}=gc();
+  return {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+    scales:{
+      x:{min:xMin,max:xMax,title:{display:true,text:xLbl,color:tick,font:{size:10}},ticks:{color:tick,font:{size:10}},grid:{color:grid}},
+      y:{...(yMax!==null?{min:yMin,max:yMax}:{min:yMin}),title:{display:true,text:yLbl,color:tick,font:{size:10}},ticks:{color:tick,font:{size:10}},grid:{color:grid}}
+    }
+  };
+}
+
+function renderSc1() {
+  killChart('sc1');
+  const s=[...registros].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const pts=[]; for(let i=0;i<s.length-1;i++) pts.push({x:s[i].calidad_sueno,y:s[i+1].animo});
+  charts['sc1']=new Chart(document.getElementById('c-sc1'),{type:'scatter',data:{datasets:[{label:'Cal.sueño→Ánimo sig.',data:pts,backgroundColor:'rgba(91,164,207,0.6)',pointRadius:6}]},options:scOpts('Calidad sueño','Ánimo día siguiente',0,10,0,10)});
+}
+function renderSc2() {
+  killChart('sc2');
+  const d=filtered(90);
+  const pts=d.map(r=>({x:r.sueno_horas,y:r.ansiedad}));
+  charts['sc2']=new Chart(document.getElementById('c-sc2'),{type:'scatter',data:{datasets:[{label:'Horas sueño vs Ansiedad',data:pts,backgroundColor:'rgba(224,108,108,0.6)',pointRadius:6}]},options:scOpts('Horas sueño','Ansiedad',0,12,0,10)});
+}
+function renderSc3() {
+  killChart('sc3');
+  const d=filtered(90);
+  const pts=d.map(r=>({x:r.ansiedad,y:(r.sintomas||[]).length}));
+  charts['sc3']=new Chart(document.getElementById('c-sc3'),{type:'scatter',data:{datasets:[{label:'Ansiedad vs N° síntomas',data:pts,backgroundColor:'rgba(246,169,66,0.7)',pointRadius:6}]},options:scOpts('Ansiedad','N° síntomas',0,10,0,null)});
+}
+
+function renderMed() {
+  killChart('med');
+  const all=registros;
+  const conMed=all.filter(r=>(r.medicacion||[]).length>0&&!(r.medicacion.length===1&&r.medicacion[0]==='Ninguna'));
+  const sinMed=all.filter(r=>(r.medicacion||[]).length===0||(r.medicacion.length===1&&r.medicacion[0]==='Ninguna'));
+  const {grid,tick}=gc();
+  charts['med']=new Chart(document.getElementById('c-med'),{
+    type:'bar',
+    data:{labels:['Ánimo','Ansiedad','Cal.sueño'],datasets:[
+      {label:'Con medicación',data:[n1(avg(conMed.map(r=>r.animo))),n1(avg(conMed.map(r=>r.ansiedad))),n1(avg(conMed.map(r=>r.calidad_sueno)))],backgroundColor:'rgba(82,183,136,0.72)',borderRadius:4},
+      {label:'Sin medicación',data:[n1(avg(sinMed.map(r=>r.animo))),n1(avg(sinMed.map(r=>r.ansiedad))),n1(avg(sinMed.map(r=>r.calidad_sueno)))],backgroundColor:'rgba(91,164,207,0.72)',borderRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+      scales:{x:{ticks:{color:tick,font:{size:11}},grid:{color:grid}},y:{min:0,max:10,ticks:{color:tick,font:{size:10}},grid:{color:grid}}}}
+  });
+}
+
+function renderSintFreq() {
+  killChart('sintomas');
+  const freq={};
+  registros.forEach(r=>(r.sintomas||[]).forEach(s=>{freq[s]=(freq[s]||0)+1;}));
+  const entries=Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+  if (!entries.length) { document.getElementById('box-sintomas').innerHTML='<div class="no-data">Sin síntomas registrados.</div>'; return; }
+  // Adjust height based on count
+  const h=Math.max(200, entries.length*28);
+  document.getElementById('box-sintomas').style.height=h+'px';
+  const {grid,tick}=gc();
+  charts['sintomas']=new Chart(document.getElementById('c-sintomas'),{
+    type:'bar',
+    data:{labels:entries.map(e=>e[0]),datasets:[{label:'Días con síntoma',data:entries.map(e=>e[1]),backgroundColor:entries.map((_,i)=>`hsla(${200+i*14},55%,62%,0.75)`),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:tick,font:{size:10},stepSize:1},grid:{color:grid}},y:{ticks:{color:tick,font:{size:11}},grid:{color:grid}}}}
+  });
+}
+
+function renderCiclo() {
+  killChart('ciclo');
+  const d=filtered().filter(r=>r.dia_ciclo!==null&&r.dia_ciclo!==undefined);
+  const box=document.getElementById('box-ciclo');
+  if (!d.length) { box.innerHTML='<div class="no-data">Sin datos de ciclo menstrual en este período.</div>'; return; }
+  if (!box.querySelector('canvas')) { box.innerHTML='<canvas id="c-ciclo"></canvas>'; }
+  const {grid,tick}=gc();
+  charts['ciclo']=new Chart(document.getElementById('c-ciclo'),{
+    type:'line',
+    data:{labels:d.map(r=>fmt(r.fecha)),datasets:[
+      {label:'Ánimo',data:d.map(r=>r.animo),borderColor:'#5ba4cf',borderWidth:2.5,pointRadius:3,tension:0.3,yAxisID:'y'},
+      {label:'Ansiedad',data:d.map(r=>r.ansiedad),borderColor:'#e06c6c',borderWidth:2.5,pointRadius:3,tension:0.3,yAxisID:'y'},
+      {label:'Día ciclo',data:d.map(r=>r.dia_ciclo),borderColor:'#f6a942',borderWidth:2,pointRadius:3,borderDash:[5,4],tension:0.3,yAxisID:'y2'}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tick,font:{size:11},boxWidth:12}}},
+      scales:{
+        x:{ticks:{color:tick,font:{size:10},maxTicksLimit:10},grid:{color:grid}},
+        y:{min:0,max:10,position:'left',ticks:{color:tick,font:{size:10}},grid:{color:grid}},
+        y2:{min:1,max:45,position:'right',title:{display:true,text:'Día ciclo',color:'#f6a942',font:{size:10}},ticks:{color:'#f6a942',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────
+function dl(blob,name) { const u=URL.createObjectURL(blob),a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+
+function exportJSON() { dl(new Blob([JSON.stringify(registros,null,2)],{type:'application/json'}), `registro-cata-${hoy()}.json`); }
+
+function importJSON(e) {
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{ try { const d=JSON.parse(ev.target.result); if(!Array.isArray(d)) throw 0;
+    d.forEach(x=>{ const i=registros.findIndex(r=>r.fecha===x.fecha); i>=0?registros[i]=x:registros.push(x); });
+    registros.sort((a,b)=>a.fecha.localeCompare(b.fecha)); save(); toast(`✓ ${d.length} registros importados`);
+  } catch { toast('⚠️ Archivo inválido'); } };
+  r.readAsText(f);
+}
+
+function exportCSV() {
+  const h=['Fecha','Horas sueño','Calidad sueño','Despertares','Ánimo','Ansiedad','Síntomas','Situaciones','Medicación','Día ciclo'];
+  const rows=[...registros].sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(r=>[
+    r.fecha,r.sueno_horas,r.calidad_sueno,r.despertares,r.animo,r.ansiedad,
+    `"${(r.sintomas||[]).join('; ')}"`,
+    `"${(r.situaciones||'').replace(/"/g,'""')}"`,
+    `"${(r.medicacion||[]).join('; ')}"`,
+    r.dia_ciclo??''
+  ]);
+  dl(new Blob(['\uFEFF'+[h.join(','),...rows.map(r=>r.join(','))].join('\n')],{type:'text/csv;charset=utf-8'}),`registro-cata-${hoy()}.csv`);
+}
+
+// ─── START ───────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
